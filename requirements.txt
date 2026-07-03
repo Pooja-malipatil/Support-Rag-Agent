@@ -1,0 +1,23 @@
+# Document loading
+markdown
+beautifulsoup4
+pypdf
+
+# Data handling
+pydantic
+
+# Utilities
+python-dotenv
+rich
+
+# YAML parsing
+pyyaml
+
+# Embeddings
+sentence-transformers
+
+# Vector store (no numpy conflict)
+qdrant-client
+
+# Sparse search
+rank-bm25
