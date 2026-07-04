@@ -1,4 +1,3 @@
-import atexit
 from pathlib import Path
 from ingestion.pipeline import run_ingestion
 from retrieval.hybrid_retriever import HybridRetriever
@@ -18,39 +17,42 @@ if __name__ == "__main__":
     retriever = HybridRetriever()
     retriever.index_chunks(chunks)
 
-    # Fix Qdrant cleanup warning on Windows
-    atexit.register(lambda: retriever.vector_store.client.close())
-
     generator = AnswerGenerator()
 
+    # Test questions
     test_questions = [
         "How do I reset my API key?",
         "What happens if I exceed the rate limit?",
         "How do I store my API key securely?",
-        "Can I use the API to mine cryptocurrency?",
-        "What is the refund policy?",
+        "Can I use the API to mine cryptocurrency?",  # answer exists
+        "What is the refund policy?",                 # answer does NOT exist
     ]
 
     for question in test_questions:
         console.print(f"\n[bold cyan]Question:[/bold cyan] {question}")
 
+        # Retrieve
         hits   = retriever.search(question, top_k=5)
+
+        # Generate
         result = generator.generate(question, hits)
 
+        # Display answer
         console.print(Panel(
             result["answer"],
             title="Answer",
             border_style="green" if not result["no_answer"] else "yellow"
         ))
 
+        # Display citations and verdicts
         if result["cited_ids"]:
             table = Table(title="Citation Verdicts", show_header=True)
-            table.add_column("Chunk ID", style="cyan")
-            table.add_column("Verdict",  style="bold")
+            table.add_column("Chunk ID",  style="cyan")
+            table.add_column("Verdict",   style="bold")
 
             for cid in result["cited_ids"]:
                 verdict = result["verdicts"].get(cid, "—")
-                color = {
+                color   = {
                     "SUPPORTED":   "green",
                     "PARTIAL":     "yellow",
                     "UNSUPPORTED": "red",
@@ -60,6 +62,7 @@ if __name__ == "__main__":
 
             console.print(table)
 
+        # Display confidence
         conf = result["confidence"]
         console.print(
             f"[dim]Confidence: {conf['score']}/100 | "
