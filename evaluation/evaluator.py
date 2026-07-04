@@ -202,71 +202,57 @@ class Evaluator:
             f"[dim]Across {report['total']} questions — "
             f"retrieval + refusal + content averaged[/dim]",
             title="Final Verdict"
-        ))def run_comparison(self) -> dict:
-    """
-    Runs the golden dataset twice:
-    once with hybrid retrieval, once with dense-only.
-    Returns both reports for comparison.
-    """
-    console.print("\n[bold cyan]=== RETRIEVAL COMPARISON ===[/bold cyan]")
-    console.print("Running hybrid vs dense-only on the same questions...\n")
+        ))
 
-    # --- Hybrid results (already have this) ---
-    console.print("[bold]1. Hybrid Retrieval (dense + BM25 + RRF)[/bold]")
-    hybrid_report = self.run(silent=True)
-
-    # --- Dense-only results ---
-    console.print("\n[bold]2. Dense-Only Retrieval (embeddings only)[/bold]")
-    dense_report = self._run_dense_only()
-
-    # --- Print comparison table ---
-    self._print_comparison(hybrid_report, dense_report)
-
-    return {"hybrid": hybrid_report, "dense": dense_report}
-
-def _run_dense_only(self) -> dict:
-    """Runs eval using only the vector store, bypassing BM25."""
-    results = []
-    for item in GOLDEN_DATASET:
-        question = item["question"]
-
-        # Use vector store directly instead of hybrid retriever
-        hits = self.retriever.vector_store.search(question, top_k=5)
-        retrieved_ids = [h["chunk_id"] for h in hits]
-
-        result = self.generator.generate(question, hits)
-
-        expected      = item["expected_chunks"]
-        retrieval_hit = all(
-            any(exp in rid for rid in retrieved_ids)
-            for exp in expected
-        ) if expected else True
-
-        if item["should_refuse"]:
-            refusal_correct = result["no_answer"]
-        else:
-            refusal_correct = not result["no_answer"]
-
-        if item["answer_contains"] and not result["no_answer"]:
-            answer_lower    = result["answer"].lower()
-            content_correct = any(
-                kw.lower() in answer_lower
-                for kw in item["answer_contains"]
-            )
-        else:
-            content_correct = True
-
-        verdicts = result.get("verdicts", {})
-        if verdicts:
-            supported = sum(
-                1 for v in verdicts.values()
-                if v in ("SUPPORTED", "PARTIAL")
-            )
-            citation_quality = supported / len(verdicts)
-        else:
-            citation_quality = 1.0 if item["should_refuse"] else 0.0
-
-        results.append({
+    def run_comparison(self) -> dict:
+        """
+        Runs the golden dataset twice:
+        once with hybrid retrieval, once with dense-only.
+        Returns both reports for comparison.
+        """
+        console.print("\n[bold cyan]=== RETRIEVAL COMPARISON ===[/bold cyan]")
+        console.print("Running hybrid vs dense-only on the same questions...\n")
+        console.print("[bold]1. Hybrid Retrieval (dense + BM25 + RRF)[/bold]")
+        hybrid_report = self.run(silent=True)
+        console.print("\n[bold]2. Dense-Only Retrieval (embeddings only)[/bold]")
+        dense_report = self._run_dense_only()
+        self._print_comparison(hybrid_report, dense_report)
+        return {"hybrid": hybrid_report, "dense": dense_report}
+    def _run_dense_only(self) -> dict:
+        """Runs eval using only the vector store, bypassing BM25."""
+        results = []
+        for item in GOLDEN_DATASET:
+            question = item["question"]
+            hits = self.retriever.vector_store.search(question, top_k=5)
+            retrieved_ids = [h["chunk_id"] for h in hits]
+            result = self.generator.generate(question, hits)
+            expected      = item["expected_chunks"]
+            retrieval_hit = all(
+                any(exp in rid for rid in retrieved_ids)
+                for exp in expected
+                ) if expected else True
+            if item["should_refuse"]:
+                refusal_correct = result["no_answer"]
+            else:
+                refusal_correct = not result["no_answer"]
+            if item["answer_contains"] and not result["no_answer"]:
+                answer_lower    = result["answer"].lower()
+                content_correct = any(
+                    kw.lower() in answer_lower
+                    for kw in item["answer_contains"]
+                    )
+            else:
+                content_correct = True
+                verdicts = result.get("verdicts", {})
+            if verdicts:
+                supported = sum(
+                    1 for v in verdicts.values()
+                    if v in ("SUPPORTED", "PARTIAL")
+                    )
+                citation_quality = supported / len(verdicts)
+            else:
+                citation_quality = 1.0 if item["should_refuse"] else 0.0
+            results.append({
             "question":         question,
             "question_type":    item["question_type"],
             "retrieval_hit":    retrieval_hit,
@@ -275,9 +261,8 @@ def _run_dense_only(self) -> dict:
             "citation_quality": citation_quality,
             "no_answer":        result["no_answer"],
         })
-
-    total = len(results)
-    return {
+            total = len(results)
+            return {
         "total":                total,
         "retrieval_accuracy":   round(sum(1 for r in results if r["retrieval_hit"])   / total * 100, 1),
         "refusal_accuracy":     round(sum(1 for r in results if r["refusal_correct"]) / total * 100, 1),
