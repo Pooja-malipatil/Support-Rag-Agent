@@ -173,3 +173,9 @@ class AnswerGenerator:
             "no_answer":   True,
             "reason":      reason,
         }
+        message = self.client.messages.create(
+            model=MODEL,
+            max_tokens=1024,
+            messages=[{"role": "user", "content": prompt}]
+            )
+    
