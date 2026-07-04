@@ -10,7 +10,6 @@ from rich.console import Console
 console = Console()
 
 if __name__ == "__main__":
-    # Ingest and index
     docs_dir = Path("docs")
     chunks   = run_ingestion(docs_dir, strategy=ChunkStrategy.HEADING)
 
@@ -19,7 +18,7 @@ if __name__ == "__main__":
     atexit.register(lambda: retriever.vector_store.client.close())
 
     generator = AnswerGenerator()
-
-    # Run evaluation
     evaluator = Evaluator(retriever, generator)
-    report    = evaluator.run()
+
+    # Run full comparison: hybrid vs dense-only
+    evaluator.run_comparison()
