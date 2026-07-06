@@ -1,7 +1,7 @@
 import atexit
 from pathlib import Path
 from ingestion.pipeline import run_ingestion
-from retrieval.hybrid_retriever import HybridRetriever
+from retrieval.smart_retriever import SmartRetriever
 from generation.generator import AnswerGenerator
 from evaluation.evaluator import Evaluator
 from config.settings import ChunkStrategy
@@ -13,12 +13,11 @@ if __name__ == "__main__":
     docs_dir = Path("docs")
     chunks   = run_ingestion(docs_dir, strategy=ChunkStrategy.HEADING)
 
-    retriever = HybridRetriever()
+    # SmartRetriever wraps HybridRetriever + adds query rewriting
+    retriever = SmartRetriever()
     retriever.index_chunks(chunks)
-    atexit.register(lambda: retriever.vector_store.client.close())
+    atexit.register(lambda: retriever.hybrid.vector_store.client.close())
 
     generator = AnswerGenerator()
     evaluator = Evaluator(retriever, generator)
-
-    # Run full comparison: hybrid vs dense-only
-    evaluator.run_comparison()
+    evaluator.run_rewriter_comparison()
