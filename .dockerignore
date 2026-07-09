@@ -1,0 +1,8 @@
+venv/
+qdrant_db/
+__pycache__/
+*.pyc
+.env
+.git/
+*.png
+*.jpg

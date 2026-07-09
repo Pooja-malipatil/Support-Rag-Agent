@@ -9,18 +9,25 @@ MODEL = "llama3.2"
 
 class AnswerGenerator:
     def __init__(self):
-        # Test that Ollama is running and model is available
+        import os
+        ollama_host = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+
+        console.print(f"[dim]Connecting to Ollama at {ollama_host}...[/dim]")
+
         try:
-            ollama.chat(
+            import ollama as ollama_lib
+            self.ollama_host = ollama_host
+        # Test connection
+            ollama_lib.Client(host=ollama_host).chat(
                 model=MODEL,
                 messages=[{"role": "user", "content": "hi"}]
             )
             console.print(f"[green]✓ Ollama connected — using {MODEL}[/green]")
         except Exception as e:
             raise RuntimeError(
-                f"Could not connect to Ollama. "
+                f"Could not connect to Ollama at {ollama_host}.\n"
                 f"Make sure Ollama is running and '{MODEL}' is pulled.\n"
-                f"Run: ollama pull {MODEL}\nError: {e}"
+                f"Error: {e}"
             )
 
     def generate(
@@ -58,8 +65,8 @@ class AnswerGenerator:
         }
 
     def _call_llm(self, prompt: str) -> str:
-        """Makes a single Ollama call and returns the text response."""
-        response = ollama.chat(
+        import ollama as ollama_lib
+        response = ollama_lib.Client(host=self.ollama_host).chat(
             model=MODEL,
             messages=[{"role": "user", "content": prompt}]
         )

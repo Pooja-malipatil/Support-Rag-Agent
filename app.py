@@ -27,6 +27,7 @@ def load_pipeline():
 # --- Sidebar ---
 with st.sidebar:
     st.title("⚙️ Settings")
+    st.caption("Developer controls for demo purposes")
     mode = st.selectbox(
         "Retrieval Mode",
         ["standard", "rewrite", "multi_query"],

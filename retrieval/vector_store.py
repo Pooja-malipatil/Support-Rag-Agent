@@ -1,3 +1,5 @@
+import os
+
 from qdrant_client import QdrantClient
 from qdrant_client.models import (
     Distance, VectorParams,
@@ -15,7 +17,18 @@ VECTOR_SIZE     = 384
 
 class VectorStore:
     def __init__(self, persist_dir: str = "./qdrant_db"):
-        self.client   = QdrantClient(path=persist_dir)
+        import os
+        qdrant_host = os.getenv("QDRANT_HOST")
+        qdrant_port = int(os.getenv("QDRANT_PORT", "6333"))
+
+        if qdrant_host:
+        # Running in Docker — connect to Qdrant service
+            console.print(f"[dim]Connecting to Qdrant at {qdrant_host}:{qdrant_port}[/dim]")
+            self.client = QdrantClient(host=qdrant_host, port=qdrant_port)
+        else:
+        # Running locally — use local file
+            self.client = QdrantClient(path=persist_dir)
+
         self.embedder = Embedder()
         self._ensure_collection()
 
