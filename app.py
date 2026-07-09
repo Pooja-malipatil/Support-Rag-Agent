@@ -2,6 +2,7 @@ import streamlit as st
 from pathlib import Path
 from retrieval.smart_retriever import SmartRetriever
 from generation.generator import AnswerGenerator
+from generation.memory import ConversationMemory
 
 # --- Page config ---
 st.set_page_config(
@@ -36,6 +37,10 @@ with st.sidebar:
     show_verdicts = st.toggle("Show citation verdicts", value=True)
 
     st.divider()
+    if st.button("🗑️ Clear conversation"):
+        st.session_state.messages = []
+        st.session_state.memory.clear()
+        st.rerun()
     st.markdown("**About**")
     st.markdown("RAG system over 53 DevAPI documentation pages. Answers are grounded in docs with verified citations.")
     st.markdown(f"**Corpus:** 341 chunks across 10 topic areas")
@@ -48,6 +53,9 @@ st.caption("Ask anything about the DevAPI documentation. Answers are cited and v
 if "messages" not in st.session_state:
     st.session_state.messages = []
 retriever, generator = load_pipeline()
+
+if "memory" not in st.session_state:
+    st.session_state.memory = ConversationMemory(max_turns=5)
 # Display chat history
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
@@ -116,36 +124,55 @@ if st.session_state.messages and st.session_state.messages[-1]["role"] == "user"
 
         with st.chat_message("assistant"):
             with st.spinner("Searching documentation..."):
-                # Retrieve
-                hits = retriever.search(question, top_k=top_k, mode=mode)
+                memory  = st.session_state.memory
+                history = memory.get_history_text()
 
-                # Generate
-                result = generator.generate(question, hits)
+        # Rewrite follow-up questions using history
+                search_question = question
+                if memory.is_followup(question) and history:
+                    rewriter        = retriever.rewriter
+                    search_question = rewriter.rewrite_with_history(
+                        question, history
+                    ) 
 
-            # Display answer
+        # Retrieve with (possibly rewritten) question
+                hits = retriever.search(
+                    search_question,
+                    top_k=top_k,
+                    mode=mode
+                )
+
+        # Generate with history context
+                result = generator.generate(
+                        question,
+                        hits,
+                        history=history
+                    )
+
+    # Display answer
             answer = result["answer"]
             st.markdown(answer)
 
-            # Confidence
-            conf = result["confidence"]["score"]
+    # Confidence
+            conf  = result["confidence"]["score"]
             color = "green" if conf > 50 else "orange" if conf > 20 else "red"
             st.markdown(f"**Confidence:** :{color}[{conf}/100]")
 
-            # Verdicts
+    # Verdicts
             if show_verdicts and result.get("verdicts"):
                 with st.expander("📎 Citation Verdicts"):
                     for cid, verdict in result["verdicts"].items():
                         icon = "✅" if verdict == "SUPPORTED" else "⚠️" if verdict == "PARTIAL" else "❌"
                         st.markdown(f"{icon} `{cid}` — **{verdict}**")
 
-            # Chunks
+    # Chunks
             if show_chunks and hits:
                 chunks_display = [
                     {
-                        "chunk_id":  h["chunk_id"],
-                        "doc_type":  h.get("metadata", {}).get("doc_type", ""),
-                        "preview":   h["content"][:200] + "...",
-                    }
+                        "chunk_id": h["chunk_id"],
+                        "doc_type": h.get("metadata", {}).get("doc_type", ""),
+                        "preview":  h["content"][:200] + "...",
+                        }
                     for h in hits[:5]
                 ]
                 with st.expander(f"📄 Retrieved chunks ({len(hits)})"):
@@ -153,16 +180,21 @@ if st.session_state.messages and st.session_state.messages[-1]["role"] == "user"
                         st.markdown(f"**`{chunk['chunk_id']}`** ({chunk['doc_type']})")
                         st.caption(chunk["preview"])
                         st.divider()
+            else:
+                chunks_display = []
 
-        # Save to history
+    # Add to memory
+            memory.add_turn(question, answer)
+
+# Save to history
         st.session_state.messages.append({
-            "role": "assistant",
-            "content": answer,
+            "role":     "assistant",
+            "content":  answer,
             "metadata": {
                 "confidence": conf,
                 "verdicts":   result.get("verdicts", {}),
                 "chunks":     chunks_display if hits else [],
-            }
-        })
+                }
+})
 show_chunks   = st.toggle("Show retrieved chunks",  value=False)
 show_verdicts = st.toggle("Show citation verdicts", value=False)       

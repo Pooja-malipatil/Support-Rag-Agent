@@ -23,19 +23,20 @@ class AnswerGenerator:
                 f"Run: ollama pull {MODEL}\nError: {e}"
             )
 
-    def generate(self, question: str, chunks: list[dict]) -> dict:
+    def generate(
+        self,
+        question: str,
+        chunks:   list[dict],
+        history:  str = ""
+        ) -> dict:
         """
-        Full pipeline:
-        1. Build prompt with chunks
-        2. Generate answer
-        3. Parse citations
-        4. Verify each citation
-        5. Return structured result
+        Full pipeline with optional conversation history.
         """
         if not chunks:
             return self._no_answer_response(question, reason="no chunks retrieved")
 
-        prompt    = build_answer_prompt(question, chunks)
+
+        prompt     = build_answer_prompt(question, chunks, history=history)
         raw_answer = self._call_llm(prompt)
 
         if "could not find this information" in raw_answer.lower():
@@ -47,13 +48,13 @@ class AnswerGenerator:
         confidence = self._calculate_confidence(cited_ids, verdicts, chunks)
 
         return {
-            "question":    question,
-            "answer":      raw_answer,
-            "cited_ids":   cited_ids,
-            "verdicts":    verdicts,
-            "confidence":  confidence,
-            "chunks_used": len(chunks),
-            "no_answer":   False,
+        "question":    question,
+        "answer":      raw_answer,
+        "cited_ids":   cited_ids,
+        "verdicts":    verdicts,
+        "confidence":  confidence,
+        "chunks_used": len(chunks),
+        "no_answer":   False,
         }
 
     def _call_llm(self, prompt: str) -> str:

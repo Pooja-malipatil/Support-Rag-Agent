@@ -1,27 +1,39 @@
-def build_answer_prompt(question: str, chunks: list[dict]) -> str:
+def build_answer_prompt(
+    question: str,
+    chunks:   list[dict],
+    history:  str = ""
+) -> str:
     """
-    Builds the prompt that instructs the LLM to answer
-    only from provided chunks and cite every claim.
+    Builds the prompt with optional conversation history.
     """
-    # Format each chunk clearly with its ID
     context_blocks = []
     for chunk in chunks:
-        block = f"""[{chunk['chunk_id']}]
-{chunk['content']}"""
+        block = f"[{chunk['chunk_id']}]\n{chunk['content']}"
         context_blocks.append(block)
 
     context_text = "\n\n---\n\n".join(context_blocks)
 
-    prompt = f"""You are a support assistant. Answer the user's question 
-using ONLY the context chunks provided below.
+    # Add conversation history section if available
+    history_section = ""
+    if history:
+        history_section = f"""
+CONVERSATION HISTORY (for context only):
+{history}
 
+"""
+
+    prompt = f"""You are a support assistant. Answer the user's question
+using ONLY the context chunks provided below.
+{history_section}
 STRICT RULES:
-1. Every factual claim must be followed by the chunk ID in brackets, 
+1. Every factual claim must be followed by the chunk ID in brackets,
    like this: [chunk-id-here]
 2. If the answer is not in the provided chunks, respond with exactly:
    "I could not find this information in the documentation."
 3. Never use outside knowledge. Never guess.
 4. Only cite chunk IDs that appear in the context below.
+5. You may reference the conversation history for context,
+   but only cite chunks for factual claims.
 
 CONTEXT CHUNKS:
 {context_text}
@@ -32,7 +44,6 @@ USER QUESTION:
 ANSWER:"""
 
     return prompt
-
 
 def build_verification_prompt(claim: str, chunk_content: str) -> str:
     """

@@ -9,17 +9,10 @@ class QueryRewriter:
     """
     Rewrites user questions into better search queries
     before they hit the retrieval system.
-
-    Two modes:
-    - single: one optimized rewrite
-    - multi:  three different rewrites (more coverage)
     """
 
     def rewrite_single(self, question: str) -> str:
-        """
-        Rewrites the question into one precise search query.
-        Returns the rewritten query as a string.
-        """
+        """Rewrites the question into one precise search query."""
         prompt = f"""You are a search query optimizer for a technical support knowledge base.
 
 Rewrite the following user question into a precise search query that will find relevant documentation.
@@ -39,19 +32,12 @@ Rewritten query:"""
             model=MODEL,
             messages=[{"role": "user", "content": prompt}]
         )
-        rewritten = response["message"]["content"].strip()
-
-        # Clean up — remove quotes if LLM added them
-        rewritten = rewritten.strip('"\'')
+        rewritten = response["message"]["content"].strip().strip('"\'')
         console.print(f"[dim]Query rewrite: '{question}' → '{rewritten}'[/dim]")
         return rewritten
 
     def rewrite_multi(self, question: str) -> list[str]:
-        """
-        Generates 3 different rewrites of the same question.
-        Each rewrite approaches the question from a different angle.
-        Returns a list of 3 query strings.
-        """
+        """Generates 3 different rewrites of the same question."""
         prompt = f"""You are a search query optimizer for a technical support knowledge base.
 
 Generate 3 different search queries for the following user question.
@@ -75,14 +61,13 @@ Queries:"""
             messages=[{"role": "user", "content": prompt}]
         )
 
-        raw = response["message"]["content"].strip()
+        raw     = response["message"]["content"].strip()
         queries = [
             line.strip().strip('"\'')
             for line in raw.split('\n')
             if line.strip()
-        ][:3]  # Take max 3
+        ][:3]
 
-        # Always include original as fallback
         if len(queries) < 3:
             queries.append(question)
 
@@ -91,3 +76,41 @@ Queries:"""
             console.print(f"[dim]  {i+1}. {q}[/dim]")
 
         return queries
+
+    def rewrite_with_history(self, question: str, history: str) -> str:
+        """
+        Rewrites a follow-up question into a standalone question
+        using conversation history.
+
+        Example:
+        History:  "Q: What are Free tier rate limits? A: 100 req/min"
+        Question: "What about Pro?"
+        Rewritten: "What are the Pro tier rate limits?"
+        """
+        if not history:
+            return question
+
+        prompt = f"""Given a conversation history and a follow-up question,
+rewrite the follow-up as a complete standalone question that contains
+all necessary context from the history.
+
+Rules:
+- The rewritten question must make sense WITHOUT the history
+- Keep it concise — one sentence maximum
+- If the question is already standalone, return it unchanged
+- Return ONLY the rewritten question, nothing else
+
+Conversation history:
+{history}
+
+Follow-up question: {question}
+
+Standalone question:"""
+
+        response = ollama.chat(
+            model=MODEL,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        rewritten = response["message"]["content"].strip().strip('"\'')
+        console.print(f"[dim]Memory rewrite: '{question}' → '{rewritten}'[/dim]")
+        return rewritten
