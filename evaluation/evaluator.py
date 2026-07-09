@@ -525,4 +525,143 @@ class Evaluator:
             )
 
             console.print(table)
+            
+    def run_reranking_comparison(self) -> None:
+        """Compares retrieval with and without cross-encoder re-ranking.
+        """
+        console.print("\n[bold cyan]=== RERANKING COMPARISON ===[/bold cyan]\n")
+        configs = [
+            ("No reranking",   False),
+            ("With reranking", True),
+            ]
+        reports = {}
+
+        for label, use_rerank in configs:
+            console.print(f"[bold]{label}[/bold]")
+            results = []
+
+            for item in GOLDEN_DATASET:
+                question = item["question"]
+                try:
+                    hits = self.retriever.search(
+                    question,
+                    top_k=5,
+                    mode="standard",
+                    rerank=use_rerank
+                    )
+                    retrieved_ids = [h["chunk_id"] for h in hits]
+                    result        = self.generator.generate(question, hits)
+
+                    expected = item["expected_chunks"]
+                    retrieval_hit = all(
+                        any(exp in rid for rid in retrieved_ids)
+                        for exp in expected
+                        ) if expected else True
+
+                    refusal_correct = (
+                        result["no_answer"] if item["should_refuse"]
+                        else not result["no_answer"]
+                        )
+
+                    if item["answer_contains"] and not result["no_answer"]:
+                        content_correct = any(
+                            kw.lower() in result["answer"].lower()
+                        for kw in item["answer_contains"]
+                        )
+                    else:
+                        content_correct = True
+
+                    verdicts = result.get("verdicts", {})
+                    if verdicts:
+                        supported = sum(
+                            1 for v in verdicts.values()
+                            if v in ("SUPPORTED", "PARTIAL")
+                            )
+                        citation_quality = supported / len(verdicts)
+                    else:
+                        citation_quality = (
+                            1.0 if item["should_refuse"] else 0.0
+                            )
+
+                    icons = {
+                        "R": "✓" if retrieval_hit   else "✗",
+                        "F": "✓" if refusal_correct else "✗",
+                        "C": "✓" if content_correct else "✗",
+                        }
+                    color = "green" if all(
+                        v == "✓" for v in icons.values()
+                        ) else "red"
+                    console.print(
+                        f"[{color}]{icons['R']}R "
+                        f"{icons['F']}F "
+                        f"{icons['C']}C[/{color}] "
+                        f"[dim]{item['question_type']:15}[/dim] "
+                        f"{question[:50]}"
+                        )
+
+                    results.append({
+                        "retrieval_hit":    retrieval_hit,
+                        "refusal_correct":  refusal_correct,
+                        "content_correct":  content_correct,
+                        "citation_quality": citation_quality,
+                        })
+
+                except Exception as e:
+                    console.print(f"[red]ERROR: {e}[/red]")
+
+            total = len(results)
+            if total > 0:
+                reports[label] = {
+                    "retrieval": round(
+                        sum(1 for r in results if r["retrieval_hit"])
+                    / total * 100, 1
+                    ),
+                    "refusal":   round(
+                        sum(1 for r in results if r["refusal_correct"])
+                    / total * 100, 1
+                    ),
+                    "content":   round(
+                        sum(1 for r in results if r["content_correct"])
+                    / total * 100, 1
+                    ),
+                    "citation":  round(
+                        sum(r["citation_quality"] for r in results)
+                    / total * 100, 1
+                    ),
+                    }
+                console.print()
+
+    # Print comparison
+        if len(reports) == 2:
+            table = Table(
+            title="Cross-Encoder Reranking Impact",
+            show_header=True
+            )
+            table.add_column("Metric",         style="cyan", width=22)
+            table.add_column("No Reranking",   justify="right", width=14)
+            table.add_column("With Reranking", justify="right", width=16)
+            table.add_column("Difference",     justify="right", width=12)
+
+            for metric, label in [
+                ("retrieval", "Retrieval Accuracy"),
+                ("refusal",   "Refusal Accuracy"),
+                ("content",   "Content Accuracy"),
+                ("citation",  "Citation Quality"),
+                ]:
+                no_r = reports["No reranking"][metric]
+                wi_r = reports["With reranking"][metric]
+                diff = round(wi_r - no_r, 1)
+                color = (
+                    "green" if diff > 0
+                    else "red" if diff < 0
+                    else "white"
+                    )
+                table.add_row(
+                    label,
+                    f"{no_r}%",
+                    f"{wi_r}%",
+                    f"[{color}]{'+' if diff > 0 else ''}{diff}%[/{color}]"
+            )
+
+            console.print(table)
 

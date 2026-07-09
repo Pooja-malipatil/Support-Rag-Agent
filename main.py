@@ -20,5 +20,5 @@ if __name__ == "__main__":
     generator = AnswerGenerator()
     evaluator = Evaluator(retriever, generator)
 
-    # Run compression comparison
-    evaluator.run_compression_comparison()
+    
+    evaluator.run_reranking_comparison()
