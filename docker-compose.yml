@@ -1,8 +1,5 @@
-version: "3.9"
-
 services:
 
-  # Qdrant vector database
   qdrant:
     image: qdrant/qdrant:latest
     container_name: support-rag-qdrant
@@ -10,13 +7,7 @@ services:
       - "6333:6333"
     volumes:
       - qdrant_data:/qdrant/storage
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:6333/healthz"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
-  # Streamlit app
   app:
     build: .
     container_name: support-rag-app
@@ -27,10 +18,9 @@ services:
       - QDRANT_HOST=qdrant
       - QDRANT_PORT=6333
     depends_on:
-      qdrant:
-        condition: service_healthy
+      - qdrant
     volumes:
-      - ./docs:/app/docs  # Mount docs so they're always fresh
+      - ./docs:/app/docs
 
 volumes:
   qdrant_data:

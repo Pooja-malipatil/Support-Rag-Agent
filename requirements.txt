@@ -26,3 +26,4 @@ anthropic
 
 fastapi
 uvicorn
+ollama
