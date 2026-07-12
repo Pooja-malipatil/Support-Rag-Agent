@@ -1,0 +1,3 @@
+@echo off
+echo Starting Support Knowledge Copilot...
+docker compose up
