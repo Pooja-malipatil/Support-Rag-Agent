@@ -35,3 +35,4 @@ ollama
 
 # UI
 streamlit
+groq

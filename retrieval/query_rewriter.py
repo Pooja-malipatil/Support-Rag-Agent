@@ -1,18 +1,35 @@
-import ollama
+import os
+from groq import Groq
+from dotenv import load_dotenv
 from rich.console import Console
 
+load_dotenv()
 console = Console()
-MODEL = "llama3.2"
+MODEL   = "llama-3.1-8b-instant"
+
+
+def get_client():
+    try:
+        import streamlit as st
+        api_key = st.secrets.get("GROQ_API_KEY")
+    except Exception:
+        api_key = os.getenv("GROQ_API_KEY")
+    return Groq(api_key=api_key)
 
 
 class QueryRewriter:
-    """
-    Rewrites user questions into better search queries
-    before they hit the retrieval system.
-    """
+
+    def _call(self, prompt: str, max_tokens: int = 200) -> str:
+        client   = get_client()
+        response = client.chat.completions.create(
+            model=MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=max_tokens,
+            temperature=0.1
+        )
+        return response.choices[0].message.content.strip()
 
     def rewrite_single(self, question: str) -> str:
-        """Rewrites the question into one precise search query."""
         prompt = f"""You are a search query optimizer for a technical support knowledge base.
 
 Rewrite the following user question into a precise search query that will find relevant documentation.
@@ -28,16 +45,11 @@ User question: {question}
 
 Rewritten query:"""
 
-        response = ollama.chat(
-            model=MODEL,
-            messages=[{"role": "user", "content": prompt}]
-        )
-        rewritten = response["message"]["content"].strip().strip('"\'')
+        rewritten = self._call(prompt).strip('"\'')
         console.print(f"[dim]Query rewrite: '{question}' → '{rewritten}'[/dim]")
         return rewritten
 
     def rewrite_multi(self, question: str) -> list[str]:
-        """Generates 3 different rewrites of the same question."""
         prompt = f"""You are a search query optimizer for a technical support knowledge base.
 
 Generate 3 different search queries for the following user question.
@@ -56,12 +68,7 @@ User question: {question}
 
 Queries:"""
 
-        response = ollama.chat(
-            model=MODEL,
-            messages=[{"role": "user", "content": prompt}]
-        )
-
-        raw     = response["message"]["content"].strip()
+        raw     = self._call(prompt, max_tokens=300)
         queries = [
             line.strip().strip('"\'')
             for line in raw.split('\n')
@@ -78,15 +85,6 @@ Queries:"""
         return queries
 
     def rewrite_with_history(self, question: str, history: str) -> str:
-        """
-        Rewrites a follow-up question into a standalone question
-        using conversation history.
-
-        Example:
-        History:  "Q: What are Free tier rate limits? A: 100 req/min"
-        Question: "What about Pro?"
-        Rewritten: "What are the Pro tier rate limits?"
-        """
         if not history:
             return question
 
@@ -107,10 +105,6 @@ Follow-up question: {question}
 
 Standalone question:"""
 
-        response = ollama.chat(
-            model=MODEL,
-            messages=[{"role": "user", "content": prompt}]
-        )
-        rewritten = response["message"]["content"].strip().strip('"\'')
+        rewritten = self._call(prompt).strip('"\'')
         console.print(f"[dim]Memory rewrite: '{question}' → '{rewritten}'[/dim]")
         return rewritten

@@ -18,15 +18,31 @@ VECTOR_SIZE     = 384
 class VectorStore:
     def __init__(self, persist_dir: str = "./qdrant_db"):
         import os
+        from dotenv import load_dotenv
+        load_dotenv()
+
+    # Try Streamlit secrets first (when deployed)
+        try:
+            import streamlit as st
+            qdrant_url     = st.secrets.get("QDRANT_URL")
+            qdrant_api_key = st.secrets.get("QDRANT_API_KEY")
+        except Exception:
+            qdrant_url     = os.getenv("QDRANT_URL")
+            qdrant_api_key = os.getenv("QDRANT_API_KEY")
+
         qdrant_host = os.getenv("QDRANT_HOST")
         qdrant_port = int(os.getenv("QDRANT_PORT", "6333"))
 
-        if qdrant_host:
-        # Running in Docker — connect to Qdrant service
+        if qdrant_url and qdrant_api_key:
+            console.print(f"[dim]Connecting to Qdrant Cloud...[/dim]")
+            self.client = QdrantClient(
+                url=qdrant_url,
+                api_key=qdrant_api_key
+            )
+        elif qdrant_host:
             console.print(f"[dim]Connecting to Qdrant at {qdrant_host}:{qdrant_port}[/dim]")
             self.client = QdrantClient(host=qdrant_host, port=qdrant_port)
         else:
-        # Running locally — use local file
             self.client = QdrantClient(path=persist_dir)
 
         self.embedder = Embedder()
